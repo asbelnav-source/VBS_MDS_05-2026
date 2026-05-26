@@ -1,0 +1,178 @@
+"""
+=============================================================================
+White Matter Hypointensity Sensitivity Analysis
+=============================================================================
+
+Project: PPMI Vascular Burden Score Analysis (Belnavis et al., Movement
+         Disorders 2026)
+
+This script reproduces the manuscript's Supplementary Analysis S1: a
+sensitivity analysis examining whether Vascular Burden Score is associated
+with FreeSurfer 7-derived T1 white matter hypointensity (WMH) volume as a
+structural surrogate for cerebrovascular small vessel disease burden.
+
+-----------------------------------------------------------------------------
+Design
+-----------------------------------------------------------------------------
+- Sample:          318 PPMI participants with both baseline FreeSurfer-derived
+                   WMH volume and complete vascular phenotyping.
+- Outcome:         WM_hypointensities volume (mm^3) from FreeSurfer 7 ASEG,
+                   normalized to estimated total intracranial volume (eTIV)
+                   and log-transformed: log( (WMH / eTIV) * 1000 )
+                   (The *1000 scaling produces interpretable units of
+                    mL per L eTIV; log addresses right-skew of WMH volumes.)
+- Predictors:      (1) Total VBS; (2) VBS_micro and VBS_macro separately;
+                   (3) DM_Group as standalone exposure
+                   All adjusted for AGE, Sex_M, BMI.
+- Stratification:  Cohort-stratified analyses (HC, prodromal, PD) also fit
+                   to verify the null is not masking within-group effects.
+
+-----------------------------------------------------------------------------
+Interpretation
+-----------------------------------------------------------------------------
+The expected result is a null association (manuscript reports
+beta = -0.036, p = 0.357), interpreted in the manuscript in the context of:
+  - PPMI's enriched, relatively low-cerebrovascular-burden cohort
+    (floor effects)
+  - T1 hypointensities' lower sensitivity than FLAIR for early small vessel
+    disease
+  - The possibility that peripheral cardiometabolic burden may precede
+    measurable central structural change in this early-stage cohort
+
+-----------------------------------------------------------------------------
+Dependencies
+-----------------------------------------------------------------------------
+Python 3.11+, pandas, numpy, statsmodels, openpyxl
+=============================================================================
+"""
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from pathlib import Path
+
+
+# -----------------------------------------------------------------------------
+# Configuration
+# -----------------------------------------------------------------------------
+ANALYTIC_FILE = Path("F31_PPMI_Vascular_SPSS.xlsx")
+FS7_FILE = Path("FS7_ASEG_VOL_13May2026.csv")
+OUTPUT_FILE = Path("wmh_sensitivity_results.csv")
+
+
+# -----------------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------------
+def build_wmh_outcome(fs7_df):
+    """Compute normalized, log-transformed WMH volume per participant.
+
+    Per the manuscript: WMH normalized to eTIV, scaled to mL per L eTIV
+    (multiply by 1000 to convert ratio to per-liter), then log-transformed.
+    """
+    out = fs7_df[["PATNO", "WM_hypointensities", "EstimatedTotalIntraCranialVol"]].copy()
+    out["wmh_norm"] = out["WM_hypointensities"] / out["EstimatedTotalIntraCranialVol"] * 1000
+    out["log_wmh_norm"] = np.log(out["wmh_norm"])
+    return out[["PATNO", "WM_hypointensities", "wmh_norm", "log_wmh_norm"]]
+
+
+def fit_ols(df, outcome, predictors, label):
+    """Fit OLS and return a dict of summary results for the lead predictor."""
+    sub = df[[outcome] + predictors].dropna()
+    y = sub[outcome]
+    X = sm.add_constant(sub[predictors])
+    model = sm.OLS(y, X).fit()
+    lead = predictors[0]
+    beta = model.params[lead]
+    se = model.bse[lead]
+    ci_low, ci_high = beta - 1.96 * se, beta + 1.96 * se
+    # Convert log-coefficient to percent change
+    pct_change = (np.exp(beta) - 1) * 100
+    pct_low = (np.exp(ci_low) - 1) * 100
+    pct_high = (np.exp(ci_high) - 1) * 100
+    return {
+        "model": label,
+        "predictor": lead,
+        "n": len(sub),
+        "beta": beta,
+        "se": se,
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "p_value": model.pvalues[lead],
+        "pct_change_per_unit": pct_change,
+        "pct_change_ci_low": pct_low,
+        "pct_change_ci_high": pct_high,
+        "r_squared": model.rsquared,
+    }
+
+
+# -----------------------------------------------------------------------------
+# Main pipeline
+# -----------------------------------------------------------------------------
+def main():
+    # 1. Load
+    analytic = pd.read_excel(ANALYTIC_FILE)
+    fs7 = pd.read_csv(FS7_FILE)
+    print(f"Analytic file: N = {len(analytic)}")
+    print(f"FS7 ASEG file: N = {len(fs7)}")
+
+    # 2. Build WMH outcome
+    wmh = build_wmh_outcome(fs7)
+
+    # 3. Merge to analytic sample
+    df = analytic.merge(wmh, on="PATNO", how="inner")
+    df = df.dropna(subset=["log_wmh_norm"])
+    print(f"Merged subset with FS7 WMH: N = {len(df)}\n")
+
+    # 4. Summary statistics
+    print(f"WMH volume (mm^3) median (IQR): {df['WM_hypointensities'].median():.0f} "
+          f"({df['WM_hypointensities'].quantile(0.25):.0f}, "
+          f"{df['WM_hypointensities'].quantile(0.75):.0f})")
+    print(f"Normalized WMH (mL/L eTIV) median (IQR): {df['wmh_norm'].median():.2f} "
+          f"({df['wmh_norm'].quantile(0.25):.2f}, "
+          f"{df['wmh_norm'].quantile(0.75):.2f})")
+    cohort_n = df["Cohort_n"].value_counts().sort_index()
+    print(f"By cohort: HC = {cohort_n.get(0, 0)}, "
+          f"Prodromal = {cohort_n.get(1, 0)}, PD = {cohort_n.get(2, 0)}")
+    print(f"DM/Pre-DM in subset: {(df['DM_Group']==1).sum()}\n")
+
+    # 5. Fit primary and sensitivity models
+    results = []
+    results.append(fit_ols(df, "log_wmh_norm",
+                            ["VBS", "AGE", "Sex_M", "BMI"],
+                            "Total VBS, full sample, adjusted"))
+    results.append(fit_ols(df, "log_wmh_norm",
+                            ["VBS_micro", "AGE", "Sex_M", "BMI"],
+                            "VBS micro sub-score, adjusted"))
+    results.append(fit_ols(df, "log_wmh_norm",
+                            ["VBS_macro", "AGE", "Sex_M", "BMI"],
+                            "VBS macro sub-score, adjusted"))
+    results.append(fit_ols(df, "log_wmh_norm",
+                            ["DM_Group", "AGE", "Sex_M", "BMI"],
+                            "DM/Pre-DM standalone, adjusted"))
+
+    # Cohort-stratified VBS
+    for c, name in [(0, "HC only"), (1, "Prodromal only"), (2, "PD only")]:
+        sub_c = df[df["Cohort_n"] == c]
+        if len(sub_c) > 20:  # only run if enough power
+            results.append(fit_ols(sub_c, "log_wmh_norm",
+                                    ["VBS", "AGE", "Sex_M", "BMI"],
+                                    f"Total VBS, {name}"))
+
+    # 6. Print
+    print("=" * 95)
+    print(f"{'Model':<40} {'n':>5} {'beta':>8} {'95% CI':<22} {'p':>8} {'pct/unit':>10}")
+    print("-" * 95)
+    for r in results:
+        ci_str = f"({r['ci_low']:+.3f}, {r['ci_high']:+.3f})"
+        pct_str = f"{r['pct_change_per_unit']:+.1f}%"
+        print(f"{r['model']:<40} {r['n']:>5} "
+              f"{r['beta']:>+8.3f} {ci_str:<22} {r['p_value']:>8.3f} {pct_str:>10}")
+    print()
+
+    # 7. Save
+    pd.DataFrame(results).to_csv(OUTPUT_FILE, index=False, float_format="%.4f")
+    print(f"Results written to {OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    main()

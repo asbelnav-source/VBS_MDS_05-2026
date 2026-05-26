@@ -1,0 +1,22 @@
+# =============================================================================
+# Python dependencies for PPMI Vascular Burden Score Analysis
+# =============================================================================
+# Project: Belnavis et al., Movement Disorders 2026
+# Tested with Python 3.11
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# Core data manipulation
+pandas>=2.0,<3.0
+numpy>=1.24,<2.0
+openpyxl>=3.1                  # required for reading .xlsx (analytic file)
+
+# Statistical modeling
+statsmodels>=0.14              # modified Poisson GLM, robust SE, FDR
+
+# Machine learning
+scikit-learn>=1.5              # random forest, cross-validation, permutation importance
+scipy>=1.11                    # underlying scientific stack
+
+# Plotting (only required for figure regeneration scripts)
+matplotlib>=3.7
