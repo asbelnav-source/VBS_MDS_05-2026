@@ -1,0 +1,8 @@
+factor,category,n_used,n_events,aRR,ci_low,ci_high,p_raw,q_BH,fdr_significant
+Hypertension,microvascular,413,151,1.6003,1.2471,2.0537,0.0002,0.0008,True
+Hyperlipidemia,microvascular,413,183,1.4544,1.1581,1.8266,0.0013,0.0030,True
+Sleep apnea (OSA),microvascular,413,43,1.5162,0.7962,2.8875,0.2053,0.3355,False
+Obesity (BMI >= 30),microvascular,413,103,2.2840,1.6582,3.1459,0.0000,0.0000,True
+Stroke / TIA,macrovascular,413,16,0.3851,0.0529,2.8047,0.3462,0.4039,False
+Coronary artery disease,macrovascular,413,28,0.9055,0.3586,2.2869,0.8337,0.8337,False
+Atrial fibrillation,macrovascular,413,19,0.4186,0.0981,1.7871,0.2396,0.3355,False
