@@ -1,0 +1,99 @@
+Fdr correction · PY
+Copy
+
+"""
+=============================================================================
+Benjamini-Hochberg False Discovery Rate Correction
+=============================================================================
+ 
+Project: PPMI Vascular Burden Score Analysis (Belnavis et al., Movement
+         Disorders 2026)
+ 
+Standalone utility for applying Benjamini-Hochberg FDR correction to a vector
+of raw p-values. Used in the manuscript for multiple comparisons across the
+seven per-factor adjusted Risk Ratio analyses.
+ 
+The Benjamini-Hochberg procedure controls the expected proportion of false
+discoveries among rejected hypotheses at level alpha. It is preferred over
+Bonferroni for moderate-multiplicity testing (~5-20 tests) because it has
+greater statistical power while still providing rigorous error control.
+ 
+Reference:
+    Benjamini Y, Hochberg Y. Controlling the false discovery rate: a
+    practical and powerful approach to multiple testing. Journal of the
+    Royal Statistical Society Series B. 1995;57(1):289-300.
+ 
+-----------------------------------------------------------------------------
+Usage
+-----------------------------------------------------------------------------
+As a module:
+    from fdr_correction import benjamini_hochberg
+    q_values, significant = benjamini_hochberg(p_values, alpha=0.05)
+ 
+As a script (reads p-values from CSV input):
+    python fdr_correction.py input.csv output.csv --pcol p_raw --alpha 0.05
+ 
+The CSV input must have a column of raw p-values (default name: 'p_raw').
+The output CSV adds two columns: 'q_BH' (FDR-adjusted q-values) and
+'fdr_significant' (boolean: True if q < alpha).
+ 
+=============================================================================
+"""
+ 
+import argparse
+import numpy as np
+import pandas as pd
+from statsmodels.stats.multitest import multipletests
+ 
+ 
+def benjamini_hochberg(p_values, alpha=0.05):
+    """Apply Benjamini-Hochberg FDR correction.
+ 
+    Parameters
+    ----------
+    p_values : array-like
+        Vector of raw two-sided p-values from independent or positively
+        dependent tests.
+    alpha : float, default 0.05
+        False discovery rate level.
+ 
+    Returns
+    -------
+    q_values : np.ndarray
+        BH-adjusted q-values in the same order as the input p-values.
+    significant : np.ndarray of bool
+        Boolean significance flag at the specified alpha level.
+    """
+    p_values = np.asarray(p_values, dtype=float)
+    if np.any(np.isnan(p_values)):
+        raise ValueError("p_values contains NaN; remove or impute before FDR correction")
+    if np.any((p_values < 0) | (p_values > 1)):
+        raise ValueError("p_values must be in [0, 1]")
+    reject, q_values, _, _ = multipletests(p_values, alpha=alpha, method="fdr_bh")
+    return q_values, reject
+ 
+ 
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[2])
+    parser.add_argument("input_csv", type=str, help="Path to input CSV containing raw p-values")
+    parser.add_argument("output_csv", type=str, help="Path to output CSV")
+    parser.add_argument("--pcol", type=str, default="p_raw", help="Name of p-value column (default: p_raw)")
+    parser.add_argument("--alpha", type=float, default=0.05, help="FDR level (default: 0.05)")
+    args = parser.parse_args()
+ 
+    df = pd.read_csv(args.input_csv)
+    if args.pcol not in df.columns:
+        raise SystemExit(f"Column '{args.pcol}' not found in {args.input_csv}. "
+                         f"Available columns: {list(df.columns)}")
+ 
+    df["q_BH"], df["fdr_significant"] = benjamini_hochberg(df[args.pcol].values, alpha=args.alpha)
+    df.to_csv(args.output_csv, index=False, float_format="%.4f")
+ 
+    n_sig = df["fdr_significant"].sum()
+    print(f"FDR correction applied at alpha = {args.alpha}")
+    print(f"Tests: {len(df)}; FDR-significant: {n_sig}")
+    print(f"Output written to {args.output_csv}")
+ 
+ 
+if __name__ == "__main__":
+    main()
