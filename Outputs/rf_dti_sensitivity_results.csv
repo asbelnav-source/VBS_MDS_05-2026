@@ -1,0 +1,11 @@
+feature_set,n_features,auc,balanced_accuracy,cohens_kappa,feature,permutation_importance_mean
+full,5,0.5146,0.5081,0.0164,VBS_micro,0.0413
+full,5,0.5146,0.5081,0.0164,VBS_macro,0.0195
+full,5,0.5146,0.5081,0.0164,FA,0.1440
+full,5,0.5146,0.5081,0.0164,MD,0.1185
+full,5,0.5146,0.5081,0.0164,RD,0.2131
+dti_only,3,0.5714,0.5487,0.0984,FA,0.1794
+dti_only,3,0.5714,0.5487,0.0984,MD,0.1372
+dti_only,3,0.5714,0.5487,0.0984,RD,0.1888
+vbs_only,2,0.2825,0.3604,-0.2739,VBS_micro,0.0784
+vbs_only,2,0.2825,0.3604,-0.2739,VBS_macro,0.0201
