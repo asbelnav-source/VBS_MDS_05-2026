@@ -1,7 +1,5 @@
 """
-=============================================================================
 Random Forest Sensitivity Analysis: Vascular Burden Score + Nigral DTI
-=============================================================================
 
 Project: PPMI Vascular Burden Score Analysis (Belnavis et al., Movement
          Disorders 2026)
@@ -12,9 +10,8 @@ components contribute classifier-relevant information beyond candidate nigral
 diffusion microstructural biomarkers in the subset of PPMI participants with
 baseline DTI data.
 
------------------------------------------------------------------------------
 DTI metric derivation
------------------------------------------------------------------------------
+
 Per standard DTI reporting conventions, the random forest uses three derived
 diffusion metrics rather than raw tensor eigenvalues:
 
